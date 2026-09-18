@@ -37,6 +37,13 @@ public:
       const QString& title = QStringLiteral("Flameshot Info"),
       const int timeout = 5000);
 
+#if !(defined(Q_OS_MACOS) || defined(Q_OS_WIN))
+    static bool forwardNotification(const QString& text,
+                                    const QString& title,
+                                    const QString& savePath,
+                                    int timeout);
+#endif
+
 #if defined(USE_KDSINGLEAPPLICATION) &&                                        \
   (defined(Q_OS_MACOS) || defined(Q_OS_WIN))
 public slots:
@@ -68,6 +75,12 @@ private:
     void attachScreenshotToClipboard(const QByteArray& screenshot);
     void attachTextToClipboard(const QString& text,
                                const QString& notification);
+#if !(defined(Q_OS_MACOS) || defined(Q_OS_WIN))
+    void showDesktopNotification(const QString& text,
+                                 const QString& title,
+                                 const QString& savePath,
+                                 int timeout);
+#endif
 
     void initTrayIcon();
     void enableTrayIcon(bool enable);

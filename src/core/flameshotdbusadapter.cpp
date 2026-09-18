@@ -31,3 +31,12 @@ void FlameshotDBusAdapter::attachPin(const QByteArray& data)
 {
     FlameshotDaemon::instance()->attachPin(data);
 }
+
+void FlameshotDBusAdapter::showDesktopNotification(const QString& text,
+                                                   const QString& title,
+                                                   const QString& savePath,
+                                                   int timeout)
+{
+    FlameshotDaemon::instance()->showDesktopNotification(
+      text, title, savePath, timeout);
+}

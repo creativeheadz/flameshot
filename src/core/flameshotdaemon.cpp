@@ -5,6 +5,7 @@
 #include "utils/confighandler.h"
 #include "utils/globalvalues.h"
 #include "utils/screenshotsaver.h"
+#include "utils/systemnotification.h"
 #include "widgets/capture/capturewidget.h"
 #include "widgets/trayicon.h"
 
@@ -16,6 +17,7 @@
 
 #if !(defined(Q_OS_MACOS) || defined(Q_OS_WIN))
 #include <QDBusConnection>
+#include <QDBusConnectionInterface>
 #include <QDBusMessage>
 #endif
 
@@ -451,6 +453,54 @@ void FlameshotDaemon::handleReplyCheckUpdates(QNetworkReply* reply)
 #endif
 
 #if !(defined(Q_OS_MACOS) || defined(Q_OS_WIN))
+/**
+ * @brief Ask the running daemon to show a desktop notification on our behalf.
+ *
+ * The notification server reports a press on a notification button back to the
+ * process that sent the notification, and a subcommand such as `flameshot gui`
+ * is gone as soon as the capture is saved. The daemon is still there when the
+ * button is pressed, so it is the one that shows notifications with buttons.
+ *
+ * @return false if this process is the daemon, if no daemon is running, or if
+ * the daemon does not know this call (an older flameshot). The caller then
+ * shows the notification itself, without a button.
+ */
+bool FlameshotDaemon::forwardNotification(const QString& text,
+                                          const QString& title,
+                                          const QString& savePath,
+                                          int timeout)
+{
+    if (instance() != nullptr) {
+        return false;
+    }
+    QDBusConnection sessionBus = QDBusConnection::sessionBus();
+    if (!sessionBus.isConnected() || sessionBus.interface() == nullptr ||
+        !sessionBus.interface()->isServiceRegistered(
+          QStringLiteral("org.flameshot.Flameshot"))) {
+        // Starting a daemon just to show a notification would be rude.
+        return false;
+    }
+
+    QDBusMessage m =
+      createMethodCall(QStringLiteral("showDesktopNotification"));
+    m << text << title << savePath << timeout;
+    // The daemon is a local process that answers immediately, but the capture
+    // is not over until this returns, so do not wait on it for long.
+    QDBusMessage reply = sessionBus.call(m, QDBus::Block, 3000);
+    return reply.type() != QDBusMessage::ErrorMessage;
+}
+
+/**
+ * @brief Show a desktop notification handed over by another flameshot process.
+ */
+void FlameshotDaemon::showDesktopNotification(const QString& text,
+                                              const QString& title,
+                                              const QString& savePath,
+                                              int timeout)
+{
+    SystemNotification().sendMessage(text, title, savePath, timeout);
+}
+
 QDBusMessage FlameshotDaemon::createMethodCall(const QString& method)
 {
     QDBusMessage m =
