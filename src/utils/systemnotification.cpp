@@ -5,6 +5,7 @@
 #include "utils/filemanagerutils.h"
 
 #include <QApplication>
+#include <QDesktopServices>
 #include <QUrl>
 #if !(defined(Q_OS_MACOS) || defined(Q_OS_WIN))
 #include <QDBusConnection>
@@ -27,6 +28,10 @@ namespace {
 // Identifier of the notification button, sent to the notification server and
 // handed back to us when the button is pressed.
 const auto OPEN_FOLDER_ACTION = QStringLiteral("flameshot-open-folder");
+
+// The action the notification server reports when the body of the notification
+// is clicked, rather than one of its buttons. Its label is never shown.
+const auto DEFAULT_ACTION = QStringLiteral("default");
 
 // Notifications whose button is never going to be pressed still take up a slot
 // in the handler, in case the notification server does not tell us they are
@@ -75,12 +80,16 @@ void NotificationActionHandler::trackNotification(uint notificationId,
 void NotificationActionHandler::onActionInvoked(uint notificationId,
                                                 const QString& actionKey)
 {
-    if (actionKey != OPEN_FOLDER_ACTION) {
+    const QString savePath = m_savePaths.value(notificationId);
+    if (savePath.isEmpty()) {
         return;
     }
-    const QString savePath = m_savePaths.value(notificationId);
-    if (!savePath.isEmpty()) {
+    if (actionKey == OPEN_FOLDER_ACTION) {
+        // The button: show the capture in the file manager, ready to drag.
         FileManagerUtils::revealFile(savePath);
+    } else if (actionKey == DEFAULT_ACTION) {
+        // The body of the notification: open the capture itself.
+        QDesktopServices::openUrl(QUrl::fromLocalFile(savePath));
     }
 }
 
@@ -164,8 +173,11 @@ void SystemNotification::sendMessage(const QString& text,
               QStringList({ fullPath.toString() });
             if (FlameshotDaemon::instance() != nullptr) {
                 // Only the daemon outlives its own notifications, so only the
-                // daemon can offer a button. Pairs of (identifier, label).
-                actions << OPEN_FOLDER_ACTION << tr("Open Folder");
+                // daemon can offer actions. Pairs of (identifier, label): the
+                // default action is the notification body and carries no
+                // label of its own.
+                actions << DEFAULT_ACTION << QString() << OPEN_FOLDER_ACTION
+                        << tr("Open Folder");
             }
         }
 
